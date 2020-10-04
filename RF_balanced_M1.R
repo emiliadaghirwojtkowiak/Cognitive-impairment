@@ -1,28 +1,28 @@
-# ### RF - Model 1 , comparison 2 ###
-#1. impute missing 
-#2. balance training and test set
+# Random Forrest Model ##
+# Model 1 , comparison 2 #
+
+## Analysis steps ##
+
+#1. Impute missing 
+#2. Balance training and test set
 #3. RF model to select variables
 #4. Variables selected incorporated to logistic regression
-# assess OR, uci, lci, p-val
-library("caret", lib.loc="~/R/win-library/3.5");library(ROSE);
-library("randomForest")
+#   -assess OR, uci, lci, p-val
+
+library("caret", lib.loc="~/R/win-library/3.5");library(ROSE);library("randomForest")
+rm(list=ls())
+
 ##################################
 ## RF model with data balance ###
 ##################################
-rm(list=ls())
 set.seed(42)
 setwd("C:/dane/socha_edyta/dane przygotowane_ES/matryca danych modele")
 mydata <- read.csv("MAT1.all.cov.forMODEL0.csv");
 data.adj <- subset(mydata, select=c(7,8,9,16, c(17:32),92,133 ))
-#data.adj <- subset(mydata, select=-c(1, 2,10,11,12, 29))
 mydata <- data.adj
 sum(is.na(mydata))
-#mydata$sex <- as.factor(mydata$sex )
-#mydata$casecont <- as.factor(mydata$casecont)
-#mydata$X3.4.tydz..2 <- as.factor(mydata$X3.4.tydz..2 )
-#mydata$X5.6.tydz..6 <- as.factor(mydata$X5.6.tydz..6 );
 
-#imp <- impute(mydata, classes = list(integer=imputeMedian(), factor=imputeMode(), numeric=imputeMedian()))
+# 1.Impute missing values
 imp <- impute(mydata)
 dim(imp)
 sum(is.na(imp))
@@ -35,16 +35,18 @@ index <- createDataPartition(imp$casecont, p = 0.7, list = FALSE)
 train_data <- imp[index, ]; dim(train_data);table(train_data$casecont)
 test_data  <- imp[-index, ]; dim(test_data);table(test_data$casecont)
 
-# balance the data using rose
+# 2.Balance the data using rose package
 data.rose.train <- ROSE(as.factor(casecont) ~ ., data = train_data, seed = 1)$data
 table(data.rose.train$casecont); dim(data.rose.train)
 
 data.rose.test <- ROSE(as.factor(casecont) ~ ., data = test_data, seed = 1)$data
 table(data.rose.test$casecont); dim(data.rose.test)
+
+# 3.RF model to select variables
 set.seed(101)
 model_rf1 <- randomForest(as.factor(casecont) ~ .,importance=T,
                           data = data.rose.train
-);model_rf1 #OOB error rate: 23.4%
+);model_rf1 
 
 setwd("C:/dane/socha_edyta/dane przygotowane_ES/plots/plotsM1")
 tiff("Opt_ntree_M1.tiff", width = 7, height = 5, units = 'in', res = 300)
@@ -53,8 +55,8 @@ legend("topright", c("OOB", "0", "1"), text.col=1:6, lty=1:3,lwd=2, col=1:3)
 title(main="Error Rates Random Forest Training data")
 
 
-# how many variables include in rf  4
-#Tuning Random Forest
+# How many variables include in RF model
+# Tuning Random Forest
 
 set.seed(101)
 tRF<- tuneRF(x = data.rose.train[,c(1,2,3,c(5:22))],
@@ -80,7 +82,7 @@ require(pROC)
 
 pred <- predict(model_rf1, newdata=test_data)
 roc.curve(test_data$casecont, pred,
-          main="ROC curve") #AUC=0.55
+          main="ROC curve") 
 
 ################################
 ## Variable importance plot ###
@@ -112,44 +114,24 @@ ggplot(rankImportance, aes(x = reorder(Variables, Importance),
   coord_flip() 
 
 
-###################################################
-## logistic regresion with selected variables ###
-###################################################
+# 4.Logistic regresion with selected variables ###
 
-LR <- glm(as.factor(casecont) ~ age+GLU +HIS+ X5.6.tydz..6
-          ,family=binomial(link='logit'),data=data.rose.train);
-summary(LR)
-
-# confidence intervls
-exp(confint(LR))
-
-
-
-#on test set
-LR <- glm(as.factor(casecont) ~ age+GLU +HIS+ X5.6.tydz..6
-          ,family=binomial(link='logit'),data=data.rose.test);
-summary(LR)
-exp(confint(LR))
-
-# on the whole 
 x <- rbind(data.rose.test[-23],data.rose.train)
 LR <- glm(as.factor(casecont) ~  age+GLU +HIS+ X5.6.tydz..6
           ,family=binomial(link='logit'),data=x );
 summary(LR)
-exp(coef(LR))
-exp(confint(LR))
 
 #age
 exp(summary(LR)$coefficients["age",1] + 
       qnorm(c(0.025,0.5,0.975)) * summary(LR)$coefficients["age",2])
 
-#diet
+#GLU
 exp(summary(LR)$coefficients["GLU",1] + 
       qnorm(c(0.025,0.5,0.975)) * summary(LR)$coefficients["GLU",2])
-# VAL
+# HIS
 exp(summary(LR)$coefficients["HIS",1] + 
       qnorm(c(0.025,0.5,0.975)) * summary(LR)$coefficients["HIS",2])
-# diet2
+# diet
 exp(summary(LR)$coefficients["X5.6.tydz..6",1] + 
       qnorm(c(0.025,0.5,0.975)) * summary(LR)$coefficients["X5.6.tydz..6",2])
 
